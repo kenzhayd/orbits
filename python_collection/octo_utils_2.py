@@ -251,6 +251,7 @@ def simulate_astrometry(star, epoch, dt):
     # Combine past, present, and future positions into arrays
     ra_vals = np.array([past_ra, star.ra, future_ra])
     dec_vals = np.array([past_dec, star.dec, future_dec])
+    
     # Subtract cluster center-of-mass (CM) position to get positions relative to CM
     ra_rel = ra_vals - ra_cm_mas
     dec_rel = dec_vals - dec_cm_mas

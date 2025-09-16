@@ -15,13 +15,13 @@ from datetime import datetime
 Constants and Variables
 """
 # Number of time intervals in array
-n_int = 10000
+n_int = 100000
 
 # Solar Mass
 M_SUN = const.M_sun.to(u.kg)
 
 # Masses of orbiting bodies in solar masses
-m_primary = 100
+m_primary = 8200
 m_secondary = 1
 
 # Distance to Omega Centauri center (km)
@@ -45,10 +45,10 @@ mtot = m_primary
 # using average angular distance from central mass between the two stars
 # apporximately 0.5" at a cluster distance 5.43kpc
 angular_distance_rad = (0.5*u.arcsec).to(u.rad).value
-#semi_major_sample = angular_distance_rad*distance_km
+semi_major_sample = angular_distance_rad*distance_km
 
 # Other semi-major axis speculations for stellar mass case:
-semi_major_sample = (26*u.au).to(u.km)
+# semi_major_sample = (26*u.au).to(u.km)
 
 # Semi Major Axis for two_body_orbits
 # same as semi_major_sample from omega centauri stars above

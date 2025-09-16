@@ -117,7 +117,8 @@ planet_5 = Planet(
     likelihoods = [ObsPriorAstromONeil2019(astrom_likelihoods["E"])],
     variables =@variables begin
         M = system.M
-        a ~ Uniform(1, 100000)
+        P ~ Uniform(1, 200000)         # Period in yrs
+        a = cbrt(M * P^2)     # Semi-Major axis in AU
         e ~ Uniform(0.0, 0.99)
         i ~ Sine()
         ω ~ UniformCircular()
@@ -133,7 +134,8 @@ planet_6 = Planet(
     likelihoods = [ObsPriorAstromONeil2019(astrom_likelihoods["F"])],
     variables =@variables begin
         M = system.M
-        a ~ Uniform(1, 100000)
+        P ~ Uniform(1, 200000)         # Period in yrs
+        a = cbrt(M * P^2)     # Semi-Major axis in AU
         e ~ Uniform(0.0, 0.99)
         i ~ Sine()
         ω ~ UniformCircular()
@@ -183,7 +185,7 @@ planet_6 = Planet(
 sys = System(
     name = "Omega_Cen",
     likelihoods = [],
-    companions = [planet_1,planet_3, planet_4, planet_5, planet_6],
+    companions = [planet_3],
     variables = @variables begin
         plx ~ truncated(Normal(0.19, 0.004), lower=0)  # Parallax [mas]
         M ~ Uniform(100, 200000)    # Host mass [solar masses]
@@ -194,7 +196,7 @@ sys = System(
 model = Octofitter.LogDensityModel(sys)
 
 # === 6. Fit with Pigeons ===
-chain, pt = octofit_pigeons(model; n_rounds=18, n_chains=70, n_chains_variational=70)
+chain, pt = octofit_pigeons(model; n_rounds=17, n_chains=70, n_chains_variational=70)
 println(chain)
 
 # Save Chain 

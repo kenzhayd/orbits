@@ -23,21 +23,20 @@ Includes:
 """
 struct StarData
     name::String
-    ra::Float64         # Right Ascension position in milliarcseconds (mas)
-    dec::Float64        # Declination position in mas
+    ra::Float64         # Right Ascension position in degrees
+    dec::Float64        # Declination position in degrees
     pm_ra::Float64      # Proper motion in RA (mas/year)
     pm_dec::Float64     # Proper motion in Dec (mas/year)
     acc_ra::Float64     # Acceleration in RA (mas/year²)
     acc_dec::Float64    # Acceleration in Dec (mas/year²)
-    sigma_pm_ra::Float64    # Uncertainty in proper motion RA (mas/year)
-    sigma_pm_dec::Float64   # Uncertainty in proper motion Dec (mas/year)
-    sigma_acc_ra::Float64   # Uncertainty in acceleration RA (mas/year²)
-    sigma_acc_dec::Float64  # Uncertainty in acceleration Dec (mas/year²)
-    v2D::Float64            # 2D velocity (km/s)
-    v2D_err::Float64        # Uncertainty in 2D velocity (km/s)
-    rv::Float64       # Radial velocity (m/s)
-    rv_err::Float64   # Uncertainty in radial velocity (m/s)
-
+    sigma_pm_ra::Float64
+    sigma_pm_dec::Float64
+    sigma_acc_ra::Float64
+    sigma_acc_dec::Float64
+    v2D::Float64
+    v2D_err::Float64
+    rv::Float64
+    rv_err::Float64
 end
 
 # ========== Omega Centauri Data ==========
@@ -46,9 +45,9 @@ end
 # reference 6 in Haberle et al. (2024; Nature, Vol. 631) 
 # We assume the IMBH is located at the cluster center
 
-# Center of mass RA and Dec in mas
-ra_cm_mas  = u"deg"(201.696834) |> x -> u"mas"(x) |> ustrip
-dec_cm_mas = u"deg"(-47.479569) |> x -> u"mas"(x) |> ustrip
+# Center of mass RA and Dec in deg
+ra_cm_deg  = 201.696834
+dec_cm_deg = -47.479569
 
 # Distance to Omega Centauri center (kiloparsecs and converted to km)
 distance_kpc = 5.43u"kpc"
@@ -101,8 +100,8 @@ end
 stars = Dict{String,StarData}(
     "A" => StarData(
         "A",
-        u"deg"(201.6967263) |> x -> u"mas"(x) |> ustrip, # mas
-        u"deg"(-47.4795835) |> x -> u"mas"(x) |> ustrip, # mas
+        201.6967263, # deg
+        -47.4795835, # deg  |
         3.563, # mas/year
         2.564, # mas/year
         -0.0069, # mas/year²
@@ -118,8 +117,8 @@ stars = Dict{String,StarData}(
     ),
     "B" => StarData(
         "B",
-        u"deg"(201.6968888) |> x -> u"mas"(x) |> ustrip, # mas
-        u"deg"(-47.4797138) |> x -> u"mas"(x) |> ustrip, # mas
+        201.6968888,
+        -47.4797138,
         2.167,
         1.415,
         0.0702,
@@ -135,8 +134,8 @@ stars = Dict{String,StarData}(
     ),
     "C" => StarData(
         "C",
-        u"deg"(201.6966378) |> x -> u"mas"(x) |> ustrip,
-        u"deg"(-47.4793672) |> x -> u"mas"(x) |> ustrip,
+        201.6966378,
+        -47.4793672,
         1.117,
         3.514,
         0.0028,
@@ -152,8 +151,8 @@ stars = Dict{String,StarData}(
     ),
     "D" => StarData(
         "D",
-        u"deg"(201.6968346) |> x -> u"mas"(x) |> ustrip,
-        u"deg"(-47.4793233) |> x -> u"mas"(x) |> ustrip,
+        201.6968346,
+        -47.4793233,
         2.559,
         -1.617,
         0.0357,
@@ -169,8 +168,8 @@ stars = Dict{String,StarData}(
     ),
     "E" => StarData(
         "E",
-        u"deg"(201.6973080) |> x -> u"mas"(x) |> ustrip,
-        u"deg"(-47.4797545) |> x -> u"mas"(x) |> ustrip,
+        201.6973080,
+        -47.4797545,
         -2.149,
         1.638,
         0.0072,
@@ -181,13 +180,13 @@ stars = Dict{String,StarData}(
         0.0075,
         69.6,
         0.8,
-        261700,
-        2700
+        261700.0,
+        2700.0
     ),
     "F" => StarData(
         "F",
-        u"deg"(201.6977125) |> x -> u"mas"(x) |> ustrip,
-        u"deg"(-47.4792625) |> x -> u"mas"(x) |> ustrip,
+        201.6977125,
+        -47.4792625,
         0.436,
         -2.584,
         0.0052,
@@ -198,13 +197,13 @@ stars = Dict{String,StarData}(
         0.0038,
         67.4,
         0.4,
-        232500,
-        4000
+        232500.0,
+        4000.0
         ),
     "G" => StarData(
         "G",
-        u"deg"(201.6961340) |> x -> u"mas"(x) |> ustrip,
-        u"deg"(-47.4790585) |> x -> u"mas"(x) |> ustrip,
+        201.6961340,
+        -47.4790585,
         -1.317,
         2.207,
         -0.0197,
@@ -236,40 +235,45 @@ Returns:
 - ra_errs: Measurement errors for RA at the three epochs (mas)
 - dec_errs: Measurement errors for Dec at the three epochs (mas)
 """
+
 function simulate_astrometry(star::StarData, epoch::Real, dt::Real)
-    # --- generate observation epochs ---
-    # Create a time array with three epochs: past, present, and future
+    # Epochs in years and MJD
     epochs_years = [epoch - dt, epoch, epoch + dt]
-    # Convert the epochs from calendar years to Modified Julian Date (MJD)
     epochs_mjd = [Octofitter.years2mjd(y) for y in epochs_years]
 
-    # --- Simulate astrometric positions at each epoch ---
-    # Predict future and past RA/Dec based on position, proper motion, and acceleration
-    future_ra = fake_pos(star.ra, star.pm_ra, star.acc_ra, dt)
-    future_dec = fake_pos(star.dec, star.pm_dec, star.acc_dec, dt)
-    past_ra = fake_pos(star.ra, star.pm_ra, star.acc_ra, -dt)
-    past_dec = fake_pos(star.dec, star.pm_dec, star.acc_dec, -dt)
+    # --- Absolute positions in mas ---
+    ra0_mas  = star.ra * 3600 * 1000    
+    dec0_mas = star.dec * 3600 * 1000
 
-    # --- Propagate errors for simulated data points ---
-    # Compute uncertainty in RA/Dec at past and future epochs using PM and acceleration errors
+    # --- Propagate positions using proper motion & acceleration  ---
+    past_ra_mas   = fake_pos(ra0_mas, star.pm_ra, star.acc_ra, -dt)
+    past_dec_mas  = fake_pos(dec0_mas, star.pm_dec, star.acc_dec, -dt)
+    future_ra_mas = fake_pos(ra0_mas, star.pm_ra, star.acc_ra, dt)
+    future_dec_mas= fake_pos(dec0_mas, star.pm_dec, star.acc_dec, dt)
+
+    ra_abs = [past_ra_mas, ra0_mas, future_ra_mas]
+    dec_abs = [past_dec_mas, dec0_mas, future_dec_mas]
+
+    # --- Convert to relative RA/Dec  ---
+    ra_rel  = ra_abs .- (ra_cm_deg * 3600 * 1000)
+    dec_rel = dec_abs .- (dec_cm_deg * 3600 * 1000)
+
+    # --- Error propagation ---
+    past_ra_err   = propagate_error(ustrip(ra_err), star.sigma_pm_ra, star.sigma_acc_ra, -dt)
+    past_dec_err  = propagate_error(ustrip(dec_err), star.sigma_pm_dec, star.sigma_acc_dec, -dt)
     future_ra_err = propagate_error(ustrip(ra_err), star.sigma_pm_ra, star.sigma_acc_ra, dt)
-    future_dec_err = propagate_error(ustrip(dec_err), star.sigma_pm_dec, star.sigma_acc_dec, dt)
-    past_ra_err = propagate_error(ustrip(ra_err), star.sigma_pm_ra, star.sigma_acc_ra, -dt)
-    past_dec_err = propagate_error(ustrip(dec_err), star.sigma_pm_dec, star.sigma_acc_dec, -dt)
+    future_dec_err= propagate_error(ustrip(dec_err), star.sigma_pm_dec, star.sigma_acc_dec, dt)
 
-    # --- Relative positions ---
-    # Combine past, present, and future positions into arrays
-    ra_vals = [past_ra, star.ra, future_ra]
-    dec_vals = [past_dec, star.dec, future_dec]
-    # Subtract cluster center-of-mass (CM) position to get positions relative to CM
-    ra_rel = ra_vals .- ra_cm_mas
-    dec_rel = dec_vals .- dec_cm_mas
-    # Set measurement errors (central epoch is assumed to be exact here with error ~1e-6)
-    ra_errs = [past_ra_err, ustrip(ra_err), future_ra_err]
+    ra_errs  = [past_ra_err, ustrip(ra_err), future_ra_err]
     dec_errs = [past_dec_err, ustrip(dec_err), future_dec_err]
 
     return epochs_mjd, ra_rel, dec_rel, ra_errs, dec_errs
 end
+
+
+
+
+
 
 # ========================================================
 #  Angular to Linear Acceleration Conversion
@@ -287,7 +291,7 @@ to linear acceleration in kilometers per second squared (km/s²).
 """
 function masyr2_to_kms2(a_masyr2::Unitful.Quantity, distance_km::Unitful.Quantity)
     # 1 mas = 1e-3 arcsec = (1e-3 / 3600) deg = (1e-3 / 3600)*(π/180) rad
-    # Unitful does not have built-in equivalencies, so convert manually:
+    # convert manually:
     a_radyr2 = uconvert(u"rad"/u"yr"^2, a_masyr2 * (1e-3 / 3600) * (π / 180))
 
     # Linear acceleration = angular acceleration × distance
@@ -346,3 +350,5 @@ function total_accelerations(star::StarData)
 end
 
 end
+
+

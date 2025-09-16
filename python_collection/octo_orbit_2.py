@@ -76,7 +76,7 @@ planet_1 = octo.Planet(
     likelihoods = [octo.ObsPriorAstromONeil2019(astrom_likelihoods["A"]), astrom_likelihoods["A"]],
     priors = 
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * A.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -92,7 +92,7 @@ planet_2 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["B"]), astrom_likelihoods["B"]], 
     priors =
     """
-          P ~ Uniform(1, 200000)        # Period in yrs
+          P ~ Uniform(1, 2000000)        # Period in yrs
           a = cbrt(system.M * B.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -108,7 +108,7 @@ planet_3 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["C"]), astrom_likelihoods["C"]], 
     priors =
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * C.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -124,7 +124,7 @@ planet_4 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["D"]), astrom_likelihoods["D"]], 
     priors =
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * D.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -140,7 +140,7 @@ planet_5 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["E"]), astrom_likelihoods["E"]], 
     priors =
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * E.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -156,7 +156,7 @@ planet_6 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["F"]), astrom_likelihoods["F"]],
     priors =
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * F.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -172,7 +172,7 @@ planet_7 = octo.Planet(
     likelihoods=[octo.ObsPriorAstromONeil2019(astrom_likelihoods["G"]), astrom_likelihoods["G"]], 
     priors =
     """
-          P ~ Uniform(1, 200000)         # Period in yrs
+          P ~ Uniform(1, 2000000)         # Period in yrs
           a = cbrt(system.M * G.P^2)     # Semi-Major axis in AU
           e ~ Uniform(0.0, 0.99)         # Eccentricity
           i ~ Sine()                     # Inclination [rad]
@@ -203,22 +203,21 @@ sys = octo.System(
         plx ~ truncated(Normal(0.19, 0.004), lower=0)     # Parallax [mas]
     """,
     likelihoods = [],                 # No system-level likelihoods in this case
-    companions = [planet_1,planet_3,planet_4,planet_5,planet_6]             # List of orbiting bodies
+    companions = [planet_1]             # List of orbiting bodies
 ) 
 
 
 
 # === 4. Log-probability model ===
-# This prepares the model for sampling. 
 model = octo.LogDensityModel(sys)
 
 # === 5. Fit the model ===
-chain, pt = octo.octofit_pigeons(model, n_rounds= 16, n_chains= 80, n_chains_variational= 80)
+chain, pt = octo.octofit_pigeons(model, n_rounds= 12, n_chains= 30, n_chains_variational= 30)
 print(chain)
 
 # Generate the corner plot
 # Cluster location: /home/kenzhayd/projects/def-vhenault/kenzhayd/
-companions = "ACDEF_ObsPrior_16rounds_80chains"
+companions = "A_ObsPrior_12rounds_30chains"
 corner_plot_name = rf"C:\Users\macke\OneDrive - Saint Marys University\Summer Research 2025\octo_orbit\octo_plots\corner_{companions}.png"
 corner_plot = octo.octocorner(model, chain, small=True, fname=corner_plot_name)
 
