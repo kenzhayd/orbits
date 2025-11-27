@@ -15,7 +15,7 @@ from datetime import datetime
 Constants and Variables
 """
 # Number of time intervals in array
-n_int = 100000
+n_int = 100
 
 # Solar Mass
 M_SUN = const.M_sun.to(u.kg)
@@ -27,6 +27,8 @@ m_secondary = 1
 # Distance to Omega Centauri center (km)
 distance_kpc = 5.43 * u.kpc
 distance_km= distance_kpc.to(u.km)
+
+
 
 # M is the mean anomaly
 M = 0.75
@@ -220,20 +222,28 @@ def masyr2_to_kms2(a_masyr2=None, distance_km=distance_km):
 
     return a_kms2
 
-def circular_period(semi_major, speed):
-    """
-    Calculate the orbital period in seconds.
+# def circular_period(semi_major, speed):
+#     """
+#     Calculate the orbital period in seconds.
     
-    Parameters:
-        semi_major: semi major axis (kilometers)
-        speed: Orbital speed (km/s)
+#     Parameters:
+#         semi_major: semi major axis (kilometers)
+#         speed: Orbital speed (km/s)
 
-    Returns:
-         Orbital period (seconds)
+#     Returns:
+#          Orbital period (seconds)
+#     """
+#     circ = 2 * np.pi * semi_major
+#     return circ/speed
+
+def kepler_period(semi_major, mtot):
     """
-    circ = 2 * np.pi * semi_major
-    return circ/speed
-
+    Kepler's 3rd law to compute orbital period P in years
+        P^2 = a³ / Mtot
+    
+    """
+    return np.sqrt(semi_major**3 / mtot)
+    
 
 def orbital_speed(a, e, nu, m_primary=m_primary*M_SUN):
     """

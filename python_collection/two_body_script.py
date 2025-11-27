@@ -18,11 +18,10 @@ import matplotlib.cm as cm
 import matplotlib.colorbar as colorbar
 
 
-import two_body_utils_2 as utils
+import two_body_utils_100000 as utils
 
 # Double checking some values
 print(utils.m_primary)
-print(utils.semi_major_sample.to(u.au))
 print(utils.n_int)
 
 """
@@ -62,7 +61,7 @@ a_dec_err = np.array([0.0098, 0.0157, 0.0123, 0.0162, 0.0075, 0.0038, 0.0170]) *
 # Total angular acceleration [mas/yr²]
 a_total_masyr2 = np.sqrt(a_ra**2 + a_dec**2)
 
-# Propagate uncertainty using partial derivatives
+# Propagate uncertainty 
 a_total_masyr2_err = np.sqrt(
     (a_ra * a_ra_err / a_total_masyr2)**2 +
     (a_dec * a_dec_err / a_total_masyr2)**2
@@ -100,18 +99,29 @@ Binary Orbit Calculations (m_primary; f(e) = 2e; nu; i = arccos(u))
 """
 
 # ========================================================
-# 1. Sample Eccentricities, Inclinations and Mean Anomalies
+# 1. Sample Semi-Major Axis, Eccentricities, Inclinations and Mean Anomalies
 # ========================================================
+
+# Distance to Omega Centauri center (km)
+distance_kpc = 5.43 * u.kpc
+distance_m= distance_kpc.to(u.m)
+angular_dist_lower = (0.265*u.arcsec).to(u.rad).value
+angular_dist_upper = (2.408*u.arcsec).to(u.rad).value
+
+# Randomly sample the instantaneous radius from the entire range of projected distances of the fast-moving stars
+# Later, we use that instantaneous radius with the eccentricity and true anomaly values previously sampled to get the semi-major for that particular sample
+angular_samples = np.random.uniform(angular_dist_lower, angular_dist_upper, utils.n_int)
+semi_major_samples = (angular_samples * distance_m).value # in meters
 
 # Sample eccentricities from the thermal distribution f(e) = 2e using inverse transform sampling:
 # Let p ~ Uniform(0,1), then e = sqrt(p) ensures f(e) ∝ 2e
-p_i = np.random.uniform(0, 1, utils.n_int)
-eccentricities_i = np.sqrt(p_i)
+p = np.random.uniform(0, 1, utils.n_int)
+eccentricities = np.sqrt(p)
 
 # Sample mean anomalies (M) uniformly from [0, 2π]
 # This reflects uniform motion in time along each orbit
 # Non-unifrom distribution of true annomaly is calculated later
-mean_anomaly_i = np.random.uniform(0, 2*np.pi, utils.n_int)
+mean_anomaly = np.random.uniform(0, 2*np.pi, utils.n_int)
 
 # Sample inclinations by sampling uniform u=cos(i) from 0 to one, reflecting inclinations from zero to 90 degrees
 u_inc = np.random.uniform(0, 1, utils.n_int)
@@ -125,18 +135,18 @@ inclinations_deg = np.degrees(inc_rad)
 
 # Initialize an array to store eccentric anomalies (E)
 # Shape: (n_eccentricities, n_mean_anomalies)
-ecc_anomaly_i = np.zeros((utils.n_int))
+ecc_anomaly = np.zeros((utils.n_int))
 
 # Solve Kepler's equation: M = E - e*sin(E) → E, for each (e, M) pair
-for k, (e_val, m_anmly) in enumerate(zip(eccentricities_i, mean_anomaly_i)):
-    ecc_anomaly_i[k] = utils.eccentric_annomaly(M=m_anmly, e=e_val)
+for k, (e_val, m_anmly) in enumerate(zip(eccentricities, mean_anomaly)):
+    ecc_anomaly[k] = utils.eccentric_annomaly(M=m_anmly, e=e_val)
 
 # Initialize an array to store true anomalies (ν)
-true_anomaly_i = np.zeros((utils.n_int))
+true_anomaly = np.zeros((utils.n_int))
 
 # Convert each eccentric anomaly and eccentricity to true anomaly 
-for k, (e_val, E_val) in enumerate(zip(eccentricities_i, ecc_anomaly_i)):
-        true_anomaly_i[k] = utils.true_anomaly(E=E_val, e=e_val)
+for k, (e_val, E_val) in enumerate(zip(eccentricities, ecc_anomaly)):
+        true_anomaly[k] = utils.true_anomaly(E=E_val, e=e_val)
 
 # ========================================================
 # 3. Compute Orbital Distances from Center of Mass
@@ -144,19 +154,18 @@ for k, (e_val, E_val) in enumerate(zip(eccentricities_i, ecc_anomaly_i)):
 
 # Compute instantaneous radial distance (r) from center of mass
 # for the primary and secondary components in meters
-a_primary_i = np.zeros((utils.n_int))
-for k, (e_val, t_anmly) in enumerate(zip(eccentricities_i, true_anomaly_i)):
-    a_primary_i[k] = utils.com_radius(a=utils.semi_major_primary.to(u.m).value, e=e_val, nu=t_anmly)     #m
-    
-a_secondary_i = np.zeros((utils.n_int))
-for k, (e_val, t_anmly) in enumerate(zip(eccentricities_i, true_anomaly_i)):
-    a_secondary_i[k] = utils.com_radius(a=utils.semi_major_secondary.to(u.m).value, e=e_val, nu=t_anmly)    #m
+a_primary= np.zeros((utils.n_int))
+for k, (e_val, t_anmly) in enumerate(zip(eccentricities, true_anomaly)):
+    a_primary[k] = utils.com_radius(a=utils.semi_major_primary.to(u.m).value, e=e_val, nu=t_anmly)     #m
+   
+a_secondary = np.zeros((utils.n_int))
+for k, (semi_a, e_val, t_anmly) in enumerate(zip(semi_major_samples, eccentricities, true_anomaly)):
+    a_secondary[k] = utils.com_radius(a=semi_a, e=e_val, nu=t_anmly)    #m
 
 # Compute the separation (r) in meters between the two bodies at each true anomaly
-relative_distance_i = np.zeros((utils.n_int))
-for k, (a_pri, a_sec, e_val, t_anmly) in enumerate(zip(a_primary_i, a_secondary_i, eccentricities_i, true_anomaly_i)):
-    relative_distance_i[k] = utils.relative_distance(a_primary=a_pri, a_secondary=a_sec, e=e_val, nu=t_anmly)
-
+relative_distance = np.zeros((utils.n_int))
+for k, (a_pri, a_sec, e_val, t_anmly) in enumerate(zip(a_primary, a_secondary, eccentricities, true_anomaly)):
+    relative_distance[k] = utils.relative_distance(a_primary=a_pri, a_secondary=a_sec, e=e_val, nu=t_anmly)
 
 
 # ========================================================
@@ -165,15 +174,14 @@ for k, (a_pri, a_sec, e_val, t_anmly) in enumerate(zip(a_primary_i, a_secondary_
 
 # The acceleration of the secondary body in the plane of the sky
 # Units outputted: km/s² (but requires input distances in meters)
-# a_xy_i = utils.xy_orbital_acceleration_secondary(rd=relative_distance_i, i = inc_rad).value
-a_xy_i = utils.xy_orbital_acceleration_secondary(rd=relative_distance_i*u.m, i = inc_rad).value
+a_xy = utils.xy_orbital_acceleration_secondary(rd=relative_distance*u.m, i = inc_rad).value
 
 # The Orbital velocity of the secondary
 # Units outputted: m/s (requires input distances in meters)
 # Note: CANNOT convert to velocity in the plane of the sky using cos(inc_rad) ==== approximation works for inclination = 0 only!!!
 # This is useful for calculating the orbital period
 orbital_speed_i = np.zeros((utils.n_int))*u.m/u.s
-for k, (a_sec, e_val, t_anmly) in enumerate(zip(a_secondary_i*u.m, eccentricities_i, true_anomaly_i)):
+for k, (a_sec, e_val, t_anmly) in enumerate(zip(a_secondary*u.m, eccentricities, true_anomaly)):
     orbital_speed_i[k] = utils.orbital_speed(a = a_sec, e = e_val, nu=t_anmly)
 
 
@@ -181,29 +189,36 @@ for k, (a_sec, e_val, t_anmly) in enumerate(zip(a_secondary_i*u.m, eccentricitie
 # 4. Compute Orbital Velocity with BinaryOrbit
 # ========================================================
 
-# Orbital period in days using a_secondary_i (in meters) orbital_speed in m/s
-per_i_days = np.zeros(utils.n_int) * u.day
-for k, (a_sec, v_orb) in enumerate(zip(a_secondary_i, orbital_speed_i)):
-    per_i_days[k] = utils.orbital_period_days(semi_major = a_sec*u.m, speed= v_orb)
+# Orbital period in days using Kepler's 3rd law
+per_days = np.zeros(utils.n_int) * u.day
+for k, a_sec in enumerate(a_secondary):
+    # Convert semi-major axis from meters to AU
+    a_sec_au = (a_sec * u.m).to(u.AU).value
     
+    # Use mtot in solar masses
+    P_years = utils.kepler_period(semi_major=a_sec_au, mtot=utils.mtot)
+    
+    # Convert to days
+    per_days[k] = P_years * 365.25 * u.day
+
 # Calculate timesteps from true anomalies in seconds
-t_i = np.zeros((utils.n_int))*u.s
-for k, (a_sec, e_val, t_anmly) in enumerate(zip(a_secondary_i*u.m, eccentricities_i, true_anomaly_i)):
-    t_i[k]= utils.true_anomaly_to_time(nu = t_anmly, e = e_val, a = a_sec)
+t = np.zeros((utils.n_int))*u.s
+for k, (a_sec, e_val, t_anmly) in enumerate(zip(a_secondary*u.m, eccentricities, true_anomaly)):
+    t[k]= utils.true_anomaly_to_time(nu = t_anmly, e = e_val, a = a_sec)
 
 # Convert timesteps to days to compare with period in days
-t_i_days = t_i.to(u.day)
+t_days = t.to(u.day)
 
 # Initialize empty array for velocities of primary (1) and secondary (2) bodies in the binary orbit
-v1_i = np.zeros((utils.n_int, 3))
-v2_i = np.zeros((utils.n_int, 3))
+v1= np.zeros((utils.n_int, 3))
+v2= np.zeros((utils.n_int, 3))
 
-for k, (e_val, i_val) in enumerate(zip(eccentricities_i, inclinations_deg)):
-        # Create BinaryOrbit instance for current e and i
+for k, (e_val, i_val) in enumerate(zip(eccentricities, inclinations_deg)):
+        # Create BinaryOrbit for current e and i
         bo = pyasl.BinaryOrbit(
             m2m1 = utils.m2m1,               # Mass ratio (m2/m1)
             mtot = utils.mtot,               # Total mass (M_sun)
-            per = per_i_days.value[k],              # Period in days
+            per = per_days.value[k],              # Period in days
             e = e_val,                       # Sampled eccentricity
             tau = utils.tau,                 # Time of periastron (d)
             Omega = utils.Omega,             # Ascending node longitude (deg)
@@ -212,15 +227,15 @@ for k, (e_val, i_val) in enumerate(zip(eccentricities_i, inclinations_deg)):
         )
 
         # Wrap time to [0, period) to avoid going beyond one orbit
-        t_i_wrapped = (t_i_days[k] % per_i_days[k]).to(u.s).value  # In seconds, scalar
+        t_wrapped = (t_days[k] % per_days[k]).to(u.s).value  # In seconds, scalar
     
         # Compute velocities at each timestep
-        v1_i[k], v2_i[k] = bo.xyzVel(t_i_wrapped)
+        v1[k], v2[k] = bo.xyzVel(t_wrapped)
 
 
 # Velocity magnitude in XY-plane (m/s)
-v1_xy_i = np.linalg.norm(v1_i[:, :2], axis=1)
-v2_xy_i = np.linalg.norm(v2_i[:, :2], axis=1)
+v1_xy= np.linalg.norm(v1[:, :2], axis=1)
+v2_xy= np.linalg.norm(v2[:, :2], axis=1)
 
 # ========================================================
 # 5. Plot the Distributions
@@ -236,7 +251,7 @@ plt.tight_layout()
 plt.show()
 
 # Plot histogram of orbital accelerations
-plt.hist(a_xy_i.flatten(), bins= utils.n_int, log=True)
+plt.hist(a_xy.flatten(), bins= utils.n_int, log=True)
 plt.xscale("log")  # Logarithmic x-axis due to wide range of accelerations
 plt.xlabel('Acceleration (km/s²)')
 plt.ylabel('Count')
@@ -244,6 +259,7 @@ plt.title('Distribution of Modelled Star Accelerations')
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)
 plt.tight_layout()
 plt.show()
+
 
 
 """
@@ -266,24 +282,33 @@ plt.rcParams.update({ # Setting font sizes for plot elements
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.set_xlabel(r"Velocity [km s$^{-1}$]", fontsize=20)
 ax.set_ylabel(r"Acceleration [km s$^{-2}$]", fontsize=20)
-# plt.title(fr"Acceleration vs Velocity ({utils.m_primary:,} $M_{{\odot}}$)")
 
+# plt.title(fr"Acceleration vs Velocity ({utils.m_primary:,} $M_{{\odot}}$)")
 # Alternte Title: ({utils.m_primary:,}$M_{{\odot}}$; f(e) = 2e; nu; i = arccos(u))
 
 ax.set_xscale("log")
 ax.set_yscale("log")
 
-# ========== Add IMBH Mass Annotation ==========
-mass_label = f"{utils.m_primary:,}"  # formats with commas
+# ========== Add Text ==========
+
 ax.text(
-    0.98, 0.95,
-    fr"$M_{{\mathrm{{IMBH}}}} = {mass_label}\,M_\odot$",
+    0.98, 0.95,  # top-right corner
+    # r"$\mathbf{M}_{\mathbf{IMBH}} = \mathbf{50{,}000\,M_\odot}$",
+    r"$\mathbf{M}_{\mathbf{IMBH}} = \mathbf{100{,}000\,M_\odot}$",
     transform=ax.transAxes,
     fontsize=14,
-    fontfamily="Times New Roman",
     ha="right", va="top",
-    color="white",                 
-    #bbox=dict(facecolor="black", alpha=0.3, edgecolor="none", boxstyle="round,pad=0.3")  #
+    color="white",
+)
+
+ax.text(
+    0.90, 0.05,  # bottom-right corner (x=right, y=low)
+    r"$\mathbf{D}$",  
+    transform=ax.transAxes,
+    fontsize=20,
+    fontfamily="Times New Roman",
+    ha="right", va="bottom",
+    color="white"
 )
 
 # ========== Plot Observed Stars with Error Bars ==========
@@ -292,7 +317,7 @@ colours = ["firebrick", "darkorange", "gold", "olive", "mediumorchid", "slateblu
 
 labels = ["A", "B", "C", "D", "E", "F", "G"]
 
-skip = {"B", "G"}   # stars you don’t want
+skip = {"B", "G"}   # stars we don’t want
 for i, label in enumerate(labels):
     if label in skip:
         continue  # skip plotting this star
@@ -310,31 +335,42 @@ for i, label in enumerate(labels):
 # ========== Plot Escape Velocity Threshold ==========
 ax.axvline(x=62, color='crimson', linestyle='--', linewidth=1)
 
-# ========== KDE for Simulated Stars ==========
-velocities = v2_xy_i.flatten() / 1e3        # velocities in km/s
-accelerations = a_xy_i.flatten()            # accelerations in km/s²
 
+# ========== KDE for Simulated Stars ==========
+
+velocities = v2_xy.flatten() / 1e3 # velocities in km/s 
+accelerations = a_xy.flatten() # accelerations in km/s² 
+
+vmin, vmax = 1, 1e4          # velocity limits (km/s)
+amin, amax = 1e-11, 1e-3     # acceleration limits (km/s²)
+
+# Convert to log space
 log_velocities = np.log10(velocities)
 log_accelerations = np.log10(accelerations)
 
 values = np.vstack([log_velocities, log_accelerations])
 
-# Create grid in log-log space
+# Create grid only within desired limits
 x_grid, y_grid = np.mgrid[
-    log_velocities.min():log_velocities.max():200j,
-    log_accelerations.min():log_accelerations.max():200j
+    np.log10(vmin):np.log10(vmax):200j,
+    np.log10(amin):np.log10(amax):200j
 ]
 
 positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
 kernel = stats.gaussian_kde(values)
 Z = np.reshape(kernel(positions).T, x_grid.shape)
 
-# Convert back to linear space for plotting
+# Back to linear space
 X_plot = 10 ** x_grid
 Y_plot = 10 ** y_grid
 
-# KDE contour plot (no scatter of simulated stars shown)
-contour = plt.contourf(X_plot, Y_plot, Z, levels=30, cmap='viridis', alpha=1.0)
+# Plot contour
+contour = ax.contourf(X_plot, Y_plot, Z, levels=30, cmap='viridis', alpha=1.0)
+
+# Now force the limits
+ax.set_xlim(vmin, vmax)
+ax.set_ylim(amin, amax)
+
 
 # ========== Overlay 1σ, 2σ, 3σ Contours ==========
 
@@ -350,7 +386,7 @@ sigma_probs = [0.68, 0.95, 0.997]
 contour_values = [Z_sorted[np.searchsorted(cumulative, p)] for p in sigma_probs]
 
 # Strictly increasing
-contour_values = np.unique(np.round(contour_values, decimals=12))  
+contour_values = np.unique(np.round(contour_values, decimals=12))
 
 # Ensure contour_values are strictly increasing for Matplotlib
 contour_values = np.sort(contour_values)
@@ -396,16 +432,13 @@ ax.legend(
     labelspacing=0.3
 )
 
-# ========== Plot Limits ==========
-
-# plt.xlim(10, 250)    # Limits for velocity (km/s)
-# plt.ylim(1e-11, 1e-5)   # Limits for acceleration (km/s²)
-
 # ========== Save and Show ==========
-i_plot_name = f"Acceleration_vs_Velocity_{utils.m_primary}_KDE"
-i_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-i_filename = rf"C:\Users\macke\OneDrive - Saint Marys University\Summer Research 2025\orbits\python_collection\plots\{i_plot_name}_{i_timestamp}.png"
+plot_name = f"av_{utils.m_primary}_KDE"
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+# filename = rf"C:\Users\macke\OneDrive - Saint Marys University\Summer Research 2025\octo_orbit\two_body_plots\{plot_name}_{timestamp}.png"
+filename = rf"{plot_name}_{timestamp}.png"
 
 fig.tight_layout()
-fig.savefig(i_filename, bbox_inches="tight", pad_inches=0.1)
-plt.show()
+fig.savefig(filename, bbox_inches="tight", pad_inches=0.1)
+fig.show()
+

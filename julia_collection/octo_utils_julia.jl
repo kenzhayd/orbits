@@ -29,71 +29,14 @@ struct StarData
     pm_dec::Float64     # Proper motion in Dec (mas/year)
     acc_ra::Float64     # Acceleration in RA (mas/year²)
     acc_dec::Float64    # Acceleration in Dec (mas/year²)
-    sigma_pm_ra::Float64
-    sigma_pm_dec::Float64
-    sigma_acc_ra::Float64
-    sigma_acc_dec::Float64
-    v2D::Float64
-    v2D_err::Float64
-    rv::Float64
-    rv_err::Float64
-end
-
-# ========== Omega Centauri Data ==========
-# We find the center to be at (α,δ) = (13:26:47.24, −47:28:46.45).
-# from https://iopscience.iop.org/article/10.1088/0004-637X/710/2/1032
-# reference 6 in Haberle et al. (2024; Nature, Vol. 631) 
-# We assume the IMBH is located at the cluster center
-
-# Center of mass RA and Dec in deg
-ra_cm_deg  = 201.696834
-dec_cm_deg = -47.479569
-
-# Distance to Omega Centauri center (kiloparsecs and converted to km)
-distance_kpc = 5.43u"kpc"
-distance_km = uconvert(u"km", distance_kpc)
-
-# Assumed errors in position (mas)
-ra_err = 0.5u"mas"
-dec_err = 0.5u"mas"
-
-# ========== Define Error Propagation Function ==========
-"""
-Propagates uncertainty in position due to uncertainties in
-proper motion and acceleration over time. No uncertainty in initial position is available.
-
-Parameters:
-- sigma_pos : Initial uncertainty in position (mas)
-- sigma_pm  : Uncertainty in proper motion (mas/yr)
-- sigma_acc : Uncertainty in acceleration (mas/yr²)
-- dt        : Time from reference epoch (in years)
-
-Returns:
-- sigma_pos : Total uncertainty in predicted position at time dt (mas)
-"""
-function propagate_error(sigma_pos, sigma_pm, sigma_acc, dt)
-    term_pos = sigma_pos^2                      
-    term_pm = (dt * sigma_pm)^2                 
-    term_acc = (0.5 * dt^2 * sigma_acc)^2      
-
-    sqrt(term_pos + term_pm + term_acc)
-end
-
-# ========== Define Position Projection Function ==========
-"""
-Gives a fake observed position using an observed angular position, velocity, and acceleration
-
-Parameters:
-- pos : Initial position (in mas)
-- pm : Proper motion (in mas/yr)
-- acc : Acceleration (in mas/yr²)
-- dt : Time offset(s) from the reference epoch in years
-
-Returns:
-- pos_final : calculated position (in mas)
-"""
-function fake_pos(pos, pm, acc, dt)
-    pos + pm*dt + 0.5*acc*dt^2
+    sigma_pm_ra::Float64 # Proper motion error in RA (mas/year)
+    sigma_pm_dec::Float64 # Proper motion error in RA (mas/year)
+    sigma_acc_ra::Float64 # Acceleration error in RA (mas/year²)
+    sigma_acc_dec::Float64 # Acceleration error in Dec (mas/year²)
+    v2D::Float64       # 2D velocity in km/s
+    v2D_err::Float64     # 2D velocity error in km/s
+    rv::Float64 # Radial velocity in km/s (NaN if unknown)
+    rv_err::Float64 
 end
 
 # ========== Define Star Dictionary ==========
@@ -219,6 +162,65 @@ stars = Dict{String,StarData}(
     ),
 )
 
+# ========== Omega Centauri Data ==========
+# We find the center to be at (α,δ) = (13:26:47.24, −47:28:46.45).
+# from https://iopscience.iop.org/article/10.1088/0004-637X/710/2/1032
+# reference 6 in Haberle et al. (2024; Nature, Vol. 631) 
+# We assume the IMBH is located at the cluster center
+
+# Center of mass RA and Dec in deg
+ra_cm_deg  = 201.696834
+dec_cm_deg = -47.479569
+
+# Distance to Omega Centauri center (kiloparsecs and converted to km)
+distance_kpc = 5.43u"kpc"
+distance_km = uconvert(u"km", distance_kpc)
+
+# Assumed errors in position (mas)
+ra_err = 0.5u"mas"
+dec_err = 0.5u"mas"
+
+# ========== Define Error Propagation Function ==========
+"""
+Propagates uncertainty in position due to uncertainties in
+proper motion and acceleration over time. No uncertainty in initial position is available.
+
+Parameters:
+- sigma_pos : Initial uncertainty in position (mas)
+- sigma_pm  : Uncertainty in proper motion (mas/yr)
+- sigma_acc : Uncertainty in acceleration (mas/yr²)
+- dt        : Time from reference epoch (in years)
+
+Returns:
+- sigma_pos : Total uncertainty in predicted position at time dt (mas)
+"""
+function propagate_error(sigma_pos, sigma_pm, sigma_acc, dt)
+    term_pos = sigma_pos^2                      
+    term_pm = (dt * sigma_pm)^2                 
+    term_acc = (0.5 * dt^2 * sigma_acc)^2      
+
+    sqrt(term_pos + term_pm + term_acc)
+end
+
+# ========== Define Position Projection Function ==========
+"""
+Gives a fake observed position using an observed angular position, velocity, and acceleration
+
+Parameters:
+- pos : Initial position (in mas)
+- pm : Proper motion (in mas/yr)
+- acc : Acceleration (in mas/yr²)
+- dt : Time offset(s) from the reference epoch in years
+
+Returns:
+- pos_final : calculated position (in mas)
+"""
+function fake_pos(pos, pm, acc, dt)
+    pos + pm*dt + 0.5*acc*dt^2
+end
+
+
+
 # ========== Astrometry Input for Octofitter ==========
 """
 Simulates astrometric positions for a star at three epochs: past, present, and future.
@@ -274,7 +276,7 @@ end
 
 
 
-
+#****THERE IS AN ERROR HERE! I DONT THINK UNITFUL DOES KPC
 # ========================================================
 #  Angular to Linear Acceleration Conversion
 # ========================================================
@@ -289,20 +291,20 @@ to linear acceleration in kilometers per second squared (km/s²).
 # Returns
 - Linear acceleration in km/s² as a Quantity
 """
-function masyr2_to_kms2(a_masyr2::Unitful.Quantity, distance_km::Unitful.Quantity)
-    # 1 mas = 1e-3 arcsec = (1e-3 / 3600) deg = (1e-3 / 3600)*(π/180) rad
-    # convert manually:
-    a_radyr2 = uconvert(u"rad"/u"yr"^2, a_masyr2 * (1e-3 / 3600) * (π / 180))
+# function masyr2_to_kms2(a_masyr2::Unitful.Quantity, distance_km::Unitful.Quantity)
+#     # 1 mas = 1e-3 arcsec = (1e-3 / 3600) deg = (1e-3 / 3600)*(π/180) rad
+#     # convert manually:
+#     a_radyr2 = uconvert(u"rad"/u"yr"^2, a_masyr2 * (1e-3 / 3600) * (π / 180))
 
-    # Linear acceleration = angular acceleration × distance
-    # a_radyr2 [rad/yr²] * distance_km [km] = km/yr²
-    a_kmyr2 = a_radyr2 * distance_km
+#     # Linear acceleration = angular acceleration × distance
+#     # a_radyr2 [rad/yr²] * distance_km [km] = km/yr²
+#     a_kmyr2 = a_radyr2 * distance_km
 
-    # Convert km/yr² to km/s²
-    a_kms2 = uconvert(u"km"/u"s"^2, a_kmyr2)
+#     # Convert km/yr² to km/s²
+#     a_kms2 = uconvert(u"km"/u"s"^2, a_kmyr2)
 
-    return a_kms2
-end
+#     return a_kms2
+# end
 
 # ========================================================
 #  Total Angular Accelerations and Uncertainty 
